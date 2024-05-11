@@ -1,0 +1,209 @@
+---
+title: "Project Assignment - Money in politics"
+#subtitle: "Due: 21 April, 23:59 TR time"
+output: 
+  tufte::tufte_html:
+    css: ../hw.css
+    tufte_variant: "envisioned"
+    highlight: pygments
+link-citations: yes
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(robotstxt)
+library(rvest)
+library(here) 
+
+knitr::opts_chunk$set(out.width = "100%", eval = TRUE)
+```
+
+In this assignment you will mainly work on data processing and data cleaning.Besides, you need to benefit from what we have covered so far regarding the missing data or potential outlier detection.
+
+## Packages
+
+In this assignment we will use the following packages:
+
+-   **tidyverse**: a collection of packages for doing data analysis in a "tidy" way
+
+-   **naniar**: about detecting missing values in different ways
+
+-   **outlier**: a collection of functions for testing potential outliers
+
+In addition to these, feel free to benefit other useful packages that we discussed lastly (including dataExplorer etc.) 
+
+- You should also load these packages in your Console, which you can do by sending the code to your Console by clicking on the **Run Current Chunk** icon (green arrow pointing right icon).
+
+Note that these packages are also get loaded in your R Markdown environment when you **Knit** your R Markdown document.
+
+## About Data set 
+
+The data come from [OpenSecrets.org](https://www.opensecrets.org), a *"website tracking the influence of money on U.S. politics, and how that money affects policy and citizens' lives"*.
+
+This website is hosted by The Center for Responsive Politics, which is a nonpartisan, independent non-profit that *"tracks money in U.S. politics and its effect on elections and public policy."*[^1]
+
+Our first goal is to merge the different data sets provided, to create a single dataset. Since that means repeating a task many times, you should write a function to create the data.
+
+## Exercise 1
+
+Write a function using a `for` loop in R to create a single data set and call it `pac_all` containing the contributions in all election years given. In your R Markdown file, load `pac_all.csv` and report its number of observations and variables as a full sentence. Our focus is the data belonging to the years 2020, 2018 and 2016 only
+
+
+```{r}
+pac_all <- data.frame()
+
+
+election_years <- c(2020, 2018, 2016)
+
+
+for (year in election_years) {
+  data <- read.csv(paste0("pac_", year, ".csv"))
+  
+  pac_all <- rbind(pac_all, data)
+}
+
+print(paste("The number of observations in pac_all is", nrow(pac_all),
+      "and the number of variables is", ncol(pac_all), "."))
+
+```
+
+## Data cleaning
+
+In this section we clean the `pac_all` data frame to prepare it for analysis and visualization. We have two goals in data cleaning:
+
+-   Separate the `country_parent` into two such that country and parent company appear in different columns for country-level analysis.
+
+- Convert contribution amounts in `total`, `dems`, and `repubs` from character strings to numeric values.
+
+- Check each column whether you have any missing values or not (You can benefit from different packages to visualize missingness if you like)
+
+The following exercises walk you through how to make these fixes to the data.
+
+Looking at the functions separete() str_remove() and str_remove_all() are strongly recommended !! 
+
+```{r}
+library(tidyr)
+
+#pac_all <- separate(pac_all, country_parent, into = c("country", "parent_company"), sep = ",")
+install.packages("naniar")
+library(naniar)
+
+gg_miss_var(pac_all)
+
+```
+
+
+## Exercise 2
+
+- Use the `separate()` function to separate `country_parent` into `country` and `parent` columns. 
+
+- Remove the character strings including `$` and `,` signs in the `total`, `dems`, and `repubs` columns and convert these columns to numeric. 
+
+- End your code chunk by printing out the top 10 rows of your data frame (if you just type the data frame name it should automatically do this for you).
+
+
+```{r, Exercise2}
+library(tidyr)
+library(dplyr)
+library(stringr)
+pac_all <- separate(pac_all, country_parent, into = c("country", "parent_company"), sep = "/")
+
+pac_all <- pac_all %>%
+  mutate(
+    total = as.numeric(str_remove_all(total,"[$,]" )),
+    dems = as.numeric(str_remove_all(dems,"[$,]" )),
+    repubs = as.numeric(str_remove_all(repubs,"[$,]" ))
+  )
+
+
+head(pac_all,n = 10)
+
+```
+
+## Exercise 3
+
+Consider one of the variables in your data set (say `total` column),
+
+- Create a boxplot for this numerical variable separately for each year. 
+
+- Comment on the distributional behavior of the variable, are you able to spot any potential outliers (value far away from the others in general)
+
+- Apply related tests from outlier package if you have any potential outlier observation in your data. Confirm or not the considered point is a real outlier or not by interpreting your statistical test results (ie. Dixon's test etc.)
+
+
+```{r, Exercise3}
+library(ggplot2)
+library(outliers)
+
+ggplot(pac_all, aes(x = factor(year), y = total)) +
+  geom_boxplot() +
+  labs(title = "Boxplot of Total Contributions by Year",
+       x = "Year",
+       y = "Total Contributions") +
+  facet_wrap(~year, scales = "free")
+#boxplot.stats(pac_all$year)$out
+boxplot.stats(pac_all$total)$out
+#boxplot.stats(pac_all$dems)$out
+#boxplot.stats(pac_all$repubs)$out
+
+
+grubbs.test(pac_all$total, two.sided = TRUE)
+# Comment on distributional behavior and identify potential outliers
+# You can visually inspect the boxplots for any values that seem far away from the others, indicating potential outliers.
+
+# Apply Dixon's test for potential outliers
+#outliers_2020 <- dixon.test(pac_all$total, opposite = TRUE)
+#outliers_2018 <- dixon.test(pac_all$total[pac_all$year == 2018], opposite = TRUE)
+#outliers_2016 <- dixon.test(pac_all$total[pac_all$year == 2016], opposite = TRUE)
+
+# Print the results of Dixon's test
+#print(outliers_2020)
+#print(outliers_2018)
+#print(outliers_2016)
+
+# Interpret the results of Dixon's test to confirm or reject potential outliers
+# If the p-value of the test is less than a chosen significance level (e.g., 0.05), the observation is considered an outlier.
+
+
+```
+
+
+The Grubbs test allows to detect whether the highest or lowest value in a dataset is an outlier.
+
+The Grubbs test detects one outlier at a time (highest or lowest value), so the null and alternative hypotheses are as follows:
+
+H0 : The highest value is not an outlier
+H1 : The highest value is an outlier
+
+Tests whether the highest value is 1615000 and whether it is an outlier and looking at the p-value, the H0 hypothesis is rejected because the p-value is small and the highest value is an outlier 
+
+
+## Exercise 4
+
+- Create a line plot of total contributions from all foreign-connected PACs in the Canada and Mexico over the years. 
+
+- Once you have made the plot, write a brief interpretation of what the graph reveals.
+
+
+```{r, Exercise4}
+
+library(ggplot2)
+foreign_pacs <- pac_all %>%
+  filter(country %in% c("Mexico", "Canada")) %>% 
+  group_by(country,year) %>%
+  summarise(total_contributions = sum(total), .groups = "drop")
+
+
+
+ggplot(foreign_pacs, aes(x = year, y = total_contributions,color  = country,group = country )) +
+  geom_line(linewidth = 1.5) +
+  labs(title = "Total Contributions from Foreign-Connected pacs in Mexico and Canada",
+       x = "Year",
+       y = "Total Contributions",
+       color = "Country")+
+  scale_color_manual(values = c("Canada" = "yellow", "Mexico" = "purple"))
+
+
+```
+
+
